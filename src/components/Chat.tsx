@@ -668,21 +668,6 @@ export const Chat: React.FC = () => {
           onClick={() => setIsHistoryOpen(false)}
         />
       )}
-
-      {overdueCount > 0 && (
-        <div className="bg-surface-accent border-b border-border px-4 md:px-6 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-0 shrink-0">
-          <div className="flex items-center text-warning text-sm font-medium">
-            <AlertCircle size={16} className="mr-2 shrink-0" />
-            Você tem {overdueCount} {overdueCount === 1 ? 'território' : 'territórios'} aguardando visitação há mais de 20 dias!
-          </div>
-          <button 
-            onClick={() => handleOption('suggest', 'Sugerir Territórios')}
-            className="text-xs bg-surface border border-border hover:bg-surface-accent text-warning px-3 py-1.5 rounded-full transition-colors font-medium shrink-0"
-          >
-            Ver quais
-          </button>
-        </div>
-      )}
       
       <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 md:space-y-5">
         {messages.map((msg) => (
