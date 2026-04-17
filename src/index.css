@@ -1,0 +1,19 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #0F1115;
+  --color-surface: #1A1D23;
+  --color-surface-accent: #252A33;
+  --color-primary: #64B5F6;
+  --color-secondary: #81C784;
+  --color-warning: #FFB74D;
+  --color-text-main: #E0E0E0;
+  --color-text-dim: #94A3B8;
+  --color-border: #2D333D;
+  --color-whatsapp: #25D366;
+}
+
+:root {
+  background-color: var(--color-bg);
+  color: var(--color-text-main);
+}

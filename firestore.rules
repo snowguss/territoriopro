@@ -1,0 +1,149 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: users
+// Document ID: {userId}
+// Fields:
+//   - uid: string (required) - The user ID
+//   - email: string (optional) - The user email
+//   - database: string (required) - JSON string of the Database object
+//   - city: string (optional) - City from settings
+//   - state: string (optional) - State from settings
+//
+// Collection: shares
+// Document ID: {shareId}
+// Fields:
+//   - id: string (required) - The sharing ID
+//   - ownerUid: string (required) - The user ID of the owner
+//   - bairroId: string (required) - The ID of the bairro
+//   - territorioId: string (required) - The ID of the territorio
+//   - bairroName: string (required) - Name of the bairro
+//   - territorioName: string (required) - Name of the territorio
+//   - enderecos: string (required) - JSON string of the Enderecos array
+//   - createdAt: timestamp (required)
+//
+// Collection: feedbacks
+// Document ID: {feedbackId}
+// Fields:
+//   - id: string (required)
+//   - shareId: string (required)
+//   - ownerUid: string (required)
+//   - territorioId: string (required)
+//   - bairroId: string (required)
+//   - publisherName: string (required) - Limits applied
+//   - notes: string (required) - JSON string of notes
+//   - createdAt: timestamp (required)
+//   - read: boolean (required)
+//
+// ===============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+  
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.ownerUid;
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+    
+    function hasOnlyAllowedFields(fields) {
+       return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+    
+    function isValidUserProfile(data) {
+       return hasRequiredFields(['uid', 'database']) &&
+              data.uid is string &&
+              data.database is string &&
+              (!('email' in data) || data.email is string) &&
+              (!('city' in data) || data.city is string) &&
+              (!('state' in data) || data.state is string);
+    }
+
+    function isValidTerritoryShare(data) {
+       return hasRequiredFields(['id', 'ownerUid', 'bairroId', 'territorioId', 'bairroName', 'territorioName', 'enderecos', 'createdAt']) &&
+              hasOnlyAllowedFields(['id', 'ownerUid', 'bairroId', 'territorioId', 'bairroName', 'territorioName', 'enderecos', 'createdAt']) &&
+              data.id is string &&
+              data.ownerUid is string &&
+              data.bairroId is string &&
+              data.territorioId is string &&
+              data.bairroName is string &&
+              data.territorioName is string &&
+              data.enderecos is string &&
+              data.createdAt is timestamp;
+    }
+    
+    function isValidFeedback(data) {
+       return hasRequiredFields(['id', 'shareId', 'ownerUid', 'territorioId', 'bairroId', 'publisherName', 'notes', 'createdAt', 'read']) &&
+              hasOnlyAllowedFields(['id', 'shareId', 'ownerUid', 'territorioId', 'bairroId', 'publisherName', 'notes', 'createdAt', 'read']) &&
+              data.id is string &&
+              data.shareId is string &&
+              data.ownerUid is string &&
+              data.territorioId is string &&
+              data.bairroId is string &&
+              data.publisherName is string && data.publisherName.size() > 0 && data.publisherName.size() < 100 &&
+              data.notes is string && data.notes.size() < 20000 &&
+              data.createdAt is timestamp &&
+              data.read is bool;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUserProfile(request.resource.data) && request.resource.data.uid == userId;
+      allow update: if isOwner(userId) && isValidUserProfile(request.resource.data) && request.resource.data.uid == resource.data.uid;
+      allow delete: if false;
+    }
+    
+    match /shares/{shareId} {
+      // Allow anybody to read a share to submit feedback. They only see specific territory data.
+      allow read: if true;
+      // Only the owner can create a share
+      allow create: if isAuthenticated() && 
+                    isValidTerritoryShare(request.resource.data) && 
+                    request.resource.data.ownerUid == request.auth.uid &&
+                    request.resource.data.id == shareId;
+      // Only the owner can update (maybe to disable it)
+      allow update: if isDocOwner() &&
+                    isValidTerritoryShare(request.resource.data) &&
+                    request.resource.data.ownerUid == resource.data.ownerUid;
+      // Only the owner can delete
+      allow delete: if isDocOwner();
+    }
+    
+    match /feedbacks/{feedbackId} {
+      // Only the owner can read feedbacks submitted to them
+      allow read: if isAuthenticated() && resource.data.ownerUid == request.auth.uid;
+      // Anyone can create a feedback (even unauthenticated users visiting the feedback link)
+      allow create: if isValidFeedback(request.resource.data) && request.resource.data.id == feedbackId;
+      // Only the owner can mark it as read OR delete it
+      allow update: if isDocOwner() &&
+                    isValidFeedback(request.resource.data) &&
+                    request.resource.data.ownerUid == resource.data.ownerUid &&
+                    request.resource.data.shareId == resource.data.shareId;
+      allow delete: if isDocOwner();
+    }
+  }
+}

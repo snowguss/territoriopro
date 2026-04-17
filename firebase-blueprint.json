@@ -1,0 +1,64 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Information about a registered user and their main database.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The user ID" },
+        "email": { "type": "string", "description": "The user email" },
+        "database": { "type": "string", "description": "JSON string of the Database object (bairros, chats, etc) to maintain backward compatibility with local storage format while living in Firestore." },
+        "city": { "type": "string", "description": "City from settings" },
+        "state": { "type": "string", "description": "State from settings" }
+      },
+      "required": ["uid", "database"]
+    },
+    "TerritoryShare": {
+      "title": "TerritoryShare",
+      "description": "Publicly accessible document (via ID) that represents a shared territory for feedback.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "The random sharing ID" },
+        "ownerUid": { "type": "string", "description": "The user ID of the owner" },
+        "bairroId": { "type": "string", "description": "The ID of the bairro" },
+        "territorioId": { "type": "string", "description": "The ID of the territorio" },
+        "bairroName": { "type": "string", "description": "Name of the bairro for display" },
+        "territorioName": { "type": "string", "description": "Name of the territorio for display" },
+        "enderecos": { "type": "string", "description": "JSON string of the Enderecos array for this territory so public can view without needing read access to owner's database." },
+        "createdAt": { "type": "timestamp" }
+      },
+      "required": ["id", "ownerUid", "bairroId", "territorioId", "bairroName", "territorioName", "enderecos", "createdAt"]
+    },
+    "Feedback": {
+      "title": "Feedback",
+      "description": "Feedback submitted on a shared territory.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "shareId": { "type": "string", "description": "The ID of the TerritoryShare this feedback belongs to" },
+        "ownerUid": { "type": "string", "description": "The user ID of the territory owner (so owner can query their feedbacks)" },
+        "territorioId": { "type": "string", "description": "The ID of the territory this feedback is for" },
+        "bairroId": { "type": "string", "description": "The ID of the bairro this feedback is for" },
+        "publisherName": { "type": "string", "description": "Name of the person who submitted the feedback" },
+        "notes": { "type": "string", "description": "JSON string of addressID -> note map" },
+        "createdAt": { "type": "timestamp" },
+        "read": { "type": "boolean", "description": "Whether the owner has read and cleared this feedback" }
+      },
+      "required": ["id", "shareId", "ownerUid", "territorioId", "bairroId", "publisherName", "notes", "createdAt", "read"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Stores user profiles and their serialized database to keep retro-compatibility."
+    },
+    "shares/{shareId}": {
+      "schema": { "$ref": "#/entities/TerritoryShare" },
+      "description": "Public shares for feedback."
+    },
+    "feedbacks/{feedbackId}": {
+      "schema": { "$ref": "#/entities/Feedback" },
+      "description": "Feedbacks submitted by people via the share links."
+    }
+  }
+}
