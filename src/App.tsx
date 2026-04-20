@@ -10,17 +10,20 @@ import { Chat } from './components/Chat';
 import { ManualEdit } from './components/ManualEdit';
 import { Settings } from './components/Settings';
 import { Login } from './components/Login';
+import { Dashboard } from './components/Dashboard';
 import { FeedbackView } from './components/FeedbackView';
-import { FeedbackNotifications } from './components/FeedbackNotifications';
-import { MessageSquare, Database as DatabaseIcon, Settings as SettingsIcon, Map, Loader2, CheckCircle2, AlertCircle, LogOut } from 'lucide-react';
+import { PublicBoardView } from './components/PublicBoardView';
+import { Workspace } from './components/Workspace';
+import { MessageSquare, Database as DatabaseIcon, Settings as SettingsIcon, Map, Loader2, CheckCircle2, AlertCircle, LogOut, Home, Key, MapPin } from 'lucide-react';
 import { cn } from './lib/utils';
 
-type Tab = 'chat' | 'database' | 'settings';
+type Tab = 'dashboard' | 'chat' | 'database' | 'settings';
 
-function AppContent() {
-  const [activeTab, setActiveTab] = useState<Tab>('chat');
+function AdminAppContent() {
+  const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const { importState } = useDatabase();
-  const { user, logOut } = useAuth();
+  const { user, profile, logOut } = useAuth();
+
 
   return (
     <div className="flex flex-col md:flex-row h-screen bg-bg font-sans text-text-main relative">
@@ -48,9 +51,6 @@ function AppContent() {
         </div>
       )}
 
-      {/* Real-time feedbacks */}
-      <FeedbackNotifications />
-
       {/* Mobile Header */}
       <header className="md:hidden flex items-center justify-between p-4 bg-surface border-b border-border shrink-0">
         <div className="font-extrabold text-lg text-primary flex items-center gap-2.5">
@@ -71,6 +71,20 @@ function AppContent() {
         
         <nav className="mb-8 flex-1">
           <div className="text-[11px] uppercase tracking-widest text-text-dim mb-3">Gerenciamento</div>
+          
+          <button
+            onClick={() => setActiveTab('dashboard')}
+            className={cn(
+              "w-full flex items-center px-3.5 py-2.5 rounded-lg text-sm transition-colors mb-1 gap-3",
+              activeTab === 'dashboard' 
+                ? "bg-surface-accent text-text-main" 
+                : "text-text-dim hover:bg-surface-accent hover:text-text-main"
+            )}
+          >
+            <Home size={18} />
+            Início
+          </button>
+
           <button
             onClick={() => setActiveTab('chat')}
             className={cn(
@@ -128,6 +142,7 @@ function AppContent() {
       {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden bg-bg relative">
         <div className="h-full w-full max-w-5xl mx-auto flex flex-col">
+          {activeTab === 'dashboard' && <Dashboard />}
           {activeTab === 'chat' && <Chat />}
           {activeTab === 'database' && <ManualEdit />}
           {activeTab === 'settings' && <Settings />}
@@ -136,6 +151,16 @@ function AppContent() {
 
       {/* Mobile Bottom Nav */}
       <nav className="md:hidden flex bg-surface border-t border-border shrink-0 pb-2">
+        <button
+          onClick={() => setActiveTab('dashboard')}
+          className={cn(
+            "flex-1 flex flex-col items-center justify-center py-3 gap-1 transition-colors",
+            activeTab === 'dashboard' ? "text-primary" : "text-text-dim hover:text-text-main"
+          )}
+        >
+          <Home size={20} />
+          <span className="text-[10px] font-medium">Início</span>
+        </button>
         <button
           onClick={() => setActiveTab('chat')}
           className={cn(
@@ -172,16 +197,24 @@ function AppContent() {
 }
 
 const AppRouter = () => {
-  const { user, loading } = useAuth();
+  const { user, profile, loading } = useAuth();
   
   const searchParams = new URLSearchParams(window.location.search);
   const shareId = searchParams.get('share');
+  const boardId = searchParams.get('board');
 
-  if (shareId) {
+  if (boardId) {
+    return <PublicBoardView boardId={boardId} />;
+  }
+
+  // Se tem shareId e não tá logado, a gente obriga a logar para cair na tela de Publicador. 
+  // Ou usamos a FeedbackView? A FeedbackView atual é anônima.
+  // Vamos manter a FeedbackView nativa pra não quebrar a funcionalidade de quem não tem conta por enquanto.
+  if (shareId && !user) {
     return <FeedbackView shareId={shareId} />;
   }
 
-  if (loading) {
+  if (loading || (user && !profile)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-bg">
         <Loader2 size={32} className="animate-spin text-primary" />
@@ -196,7 +229,7 @@ const AppRouter = () => {
   // Wrapped in DB provider only when authenticated (to avoid reading offline state incorrectly)
   return (
     <DatabaseProvider>
-      <AppContent />
+      {profile?.role === 'ADMIN' ? <AdminAppContent /> : <Workspace />}
     </DatabaseProvider>
   );
 };

@@ -3,8 +3,16 @@ import { User, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut 
 import { auth, db } from '../firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
+export interface UserProfile {
+  uid: string;
+  email: string;
+  role: 'ADMIN' | 'DIRIGENTE' | 'PUBLICADOR';
+  masterUid?: string;
+}
+
 interface AuthContextType {
   user: User | null;
+  profile: UserProfile | null;
   loading: boolean;
   signIn: () => Promise<void>;
   logOut: () => Promise<void>;
@@ -14,6 +22,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -23,16 +32,57 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Ensure user document exists
         const userRef = doc(db, 'users', currentUser.uid);
         const userSnap = await getDoc(userRef);
+        let profileData: UserProfile;
+
         if (!userSnap.exists()) {
-          const emptyDb = { bairros: [], chats: [] };
-          // If we have something in localStorage, maybe we can migrate it? 
-          // DatabaseContext will handle migration when it mounts!
-          await setDoc(userRef, {
+          // Check for invite/share link
+          const urlParams = new URLSearchParams(window.location.search);
+          const shareId = urlParams.get('share');
+          
+          let role: 'ADMIN' | 'DIRIGENTE' | 'PUBLICADOR' = 'ADMIN';
+          let masterUid = undefined;
+
+          if (shareId) {
+            try {
+              const shareDoc = await getDoc(doc(db, 'shares', shareId));
+              if (shareDoc.exists() && shareDoc.data().ownerUid) {
+                 masterUid = shareDoc.data().ownerUid;
+                 role = 'PUBLICADOR';
+              }
+            } catch (err) {
+              console.error("Error resolving share link:", err);
+            }
+          }
+
+          profileData = {
             uid: currentUser.uid,
             email: currentUser.email || '',
+            role,
+            masterUid
+          };
+
+          const emptyDb = { bairros: [], chats: [] };
+          await setDoc(userRef, {
+            ...profileData,
             database: JSON.stringify(emptyDb)
           });
+        } else {
+          const data = userSnap.data();
+          profileData = {
+            uid: currentUser.uid,
+            email: currentUser.email || '',
+            role: data.role || 'ADMIN',
+            masterUid: data.masterUid
+          };
+          
+          // Migrate old accounts to have a role
+          if (!data.role) {
+            await setDoc(userRef, { role: 'ADMIN' }, { merge: true });
+          }
         }
+        setProfile(profileData);
+      } else {
+        setProfile(null);
       }
       setLoading(false);
     }, (error) => {
@@ -53,7 +103,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, logOut }}>
+    <AuthContext.Provider value={{ user, profile, loading, signIn, logOut }}>
       {children}
     </AuthContext.Provider>
   );

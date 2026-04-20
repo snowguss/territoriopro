@@ -45,6 +45,19 @@
         "read": { "type": "boolean", "description": "Whether the owner has read and cleared this feedback" }
       },
       "required": ["id", "shareId", "ownerUid", "territorioId", "bairroId", "publisherName", "notes", "createdAt", "read"]
+    },
+    "PublicBoard": {
+      "title": "PublicBoard",
+      "description": "Publicly accessible document containing available territories and publisher notifications.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "ownerUid": { "type": "string" },
+        "congregationName": { "type": "string" },
+        "availableTerritories": { "type": "string", "description": "JSON string" },
+        "updatedAt": { "type": "timestamp" }
+      },
+      "required": ["id", "ownerUid", "congregationName", "availableTerritories", "updatedAt"]
     }
   },
   "firestore": {
@@ -59,6 +72,10 @@
     "feedbacks/{feedbackId}": {
       "schema": { "$ref": "#/entities/Feedback" },
       "description": "Feedbacks submitted by people via the share links."
+    },
+    "boards/{boardId}": {
+      "schema": { "$ref": "#/entities/PublicBoard" },
+      "description": "Public storefront for territories"
     }
   }
 }

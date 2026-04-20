@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useDatabase } from '../context/DatabaseContext';
-import { Plus, Trash2, Edit2, ChevronDown, ChevronRight, MapPin, Home, Map, MessageCircle, Check, AlertCircle, GripVertical, Share2, Link, MessageSquarePlus } from 'lucide-react';
+import { Plus, Trash2, Edit2, ChevronDown, ChevronRight, MapPin, Home, Map, MessageCircle, Check, AlertCircle, GripVertical, Share2, Link, MessageSquarePlus, RotateCcw, Info } from 'lucide-react';
 import { Bairro, Territorio, Endereco } from '../types';
 import { format, differenceInDays } from 'date-fns';
 import { Modal } from './Modal';
@@ -37,9 +37,11 @@ type ModalState =
   | { type: 'add_territorio', bairroId: string }
   | { type: 'edit_territorio', id: string, name: string, lastAssignedDate?: string }
   | { type: 'add_endereco', territorioId: string }
+  | { type: 'smart_add_endereco' }
+  | { type: 'preview_territorio', bairro: Bairro, territorio: Territorio }
   | { type: 'edit_endereco', id: string, street: string, number: string, observations: string, status?: string, statusComment?: string, statusDate?: string }
-  | { type: 'confirm_delete', entityType: 'bairro' | 'territorio' | 'endereco', id: string, name: string }
-  | { type: 'share_link', url: string };
+  | { type: 'confirm_reset_statuses', id: string, name: string }
+  | { type: 'confirm_delete', entityType: 'bairro' | 'territorio' | 'endereco', id: string, name: string };
 
 interface SortableTerritorioProps {
   bairro: Bairro;
@@ -50,14 +52,14 @@ interface SortableTerritorioProps {
   onEdit: (territorio: Territorio) => void;
   onDelete: (id: string, name: string) => void;
   onCopy: (bairro: Bairro, territorio: Territorio) => void;
-  onShare: (bairro: Bairro, territorio: Territorio) => void;
+  onResetStatuses: (id: string, name: string) => void;
   copiedId: string | null;
   onEditEndereco: (endereco: Endereco) => void;
   onDeleteEndereco: (id: string, name: string) => void;
 }
 
 const SortableTerritorioItem: React.FC<SortableTerritorioProps> = ({ 
-  bairro, territorio, isExpanded, onToggle, onAddEndereco, onEdit, onDelete, onCopy, onShare, copiedId, onEditEndereco, onDeleteEndereco 
+  bairro, territorio, isExpanded, onToggle, onAddEndereco, onEdit, onDelete, onCopy, onResetStatuses, copiedId, onEditEndereco, onDeleteEndereco 
 }) => {
   const {
     attributes,
@@ -97,21 +99,17 @@ const SortableTerritorioItem: React.FC<SortableTerritorioProps> = ({
         </div>
         <div className="flex items-center space-x-1 ml-2 shrink-0">
           <button 
-            onClick={() => onShare(bairro, territorio)} 
-            className="text-primary hover:text-blue-400 p-1 mr-1" 
-            title="Gerar Link de Feedback"
-          >
-            <Share2 size={14} />
-          </button>
-          <button 
             onClick={() => onCopy(bairro, territorio)} 
             className="text-whatsapp hover:text-green-400 p-1 mr-1" 
-            title="Copiar mensagem para WhatsApp"
+            title="Copiar mensagem com Link para WhatsApp"
           >
             {copiedId === territorio.id ? <Check size={14} /> : <MessageCircle size={14} />}
           </button>
           <button onClick={() => onAddEndereco(territorio.id)} className="text-primary hover:text-blue-400 p-1" title="Adicionar Endereço">
             <Plus size={14} />
+          </button>
+          <button onClick={() => onResetStatuses(territorio.id, `Território ${territorio.name}`)} className="text-warning hover:text-yellow-600 p-1" title="Resetar Todos os Status do Território">
+            <RotateCcw size={14} />
           </button>
           <button onClick={() => onEdit(territorio)} className="text-text-dim hover:text-text-main p-1" title="Editar Território">
             <Edit2 size={14} />
@@ -224,7 +222,7 @@ const BairroHeader: React.FC<BairroHeaderProps> = ({
 };
 
 export const ManualEdit: React.FC = () => {
-  const { db, addBairro, removeBairro, updateBairro, addTerritorio, removeTerritorio, updateTerritorio, addEndereco, removeEndereco, updateEndereco, markTerritorioAssigned, moveTerritorio } = useDatabase();
+  const { db, addBairro, removeBairro, updateBairro, addTerritorio, removeTerritorio, updateTerritorio, addEndereco, removeEndereco, updateEndereco, markTerritorioAssigned, moveTerritorio, resetTerritorioStatuses } = useDatabase();
   const [expandedBairros, setExpandedBairros] = useState<Record<string, boolean>>({});
   const [expandedTerritorios, setExpandedTerritorios] = useState<Record<string, boolean>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -232,6 +230,36 @@ export const ManualEdit: React.FC = () => {
   
   const [modalState, setModalState] = useState<ModalState>({ type: 'none' });
   const [formData, setFormData] = useState<Record<string, string>>({});
+  const [showMatches, setShowMatches] = useState(false);
+
+  const smartStreetMatches = React.useMemo(() => {
+    if (modalState.type !== 'smart_add_endereco' || !formData.street || formData.street.length < 3) return [];
+    const search = formData.street.toLowerCase();
+    
+    const matches: {street: string, defaultBairroId: string, defaultTerritorioId: string, bairroName: string, territorioName: string}[] = [];
+    const uniqueStreets = new Set<string>();
+
+    db.bairros.forEach(b => {
+      b.territorios.forEach(t => {
+        t.enderecos.forEach(e => {
+          if (e.street.toLowerCase().includes(search)) {
+            const key = e.street.toLowerCase();
+            if (!uniqueStreets.has(key)) {
+              uniqueStreets.add(key);
+              matches.push({
+                street: e.street,
+                defaultBairroId: b.id,
+                defaultTerritorioId: t.id,
+                bairroName: b.name,
+                territorioName: t.name
+              });
+            }
+          }
+        });
+      });
+    });
+    return matches.slice(0, 5); // Limit suggestions
+  }, [formData.street, db, modalState.type]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -252,20 +280,48 @@ export const ManualEdit: React.FC = () => {
     setFormData({});
   };
 
-  const handleCopyWhatsApp = (bairro: Bairro, territorio: Territorio) => {
-    let msg = `📍 ${bairro.name.toUpperCase()} - TERRITÓRIO ${territorio.name.toUpperCase()}\n\n`;
-    territorio.enderecos.forEach((end, index) => {
-      msg += `${index + 1}. ${end.street}, ${end.number}\n`;
-      if (end.observations) {
-        msg += `- ${end.observations}\n`;
+  const handleCopyWhatsApp = async (bairro: Bairro, territorio: Territorio) => {
+    try {
+      const shareId = Math.random().toString(36).substring(2, 10);
+      const origin = window.location.origin;
+      const shareRef = doc(firestoreDb, 'shares', shareId);
+      
+      const currentAuth = (await import('firebase/auth')).getAuth();
+      if (!currentAuth.currentUser) {
+        alert("Erro: Você precisa estar logado para gerar o link do território.");
+        return;
       }
-    });
-    msg += `\nDepois do trabalho, envie o relatório para o condutor.`;
-    
-    navigator.clipboard.writeText(msg);
-    setCopiedId(territorio.id);
-    markTerritorioAssigned(territorio.id);
-    setTimeout(() => setCopiedId(null), 2000);
+
+      await setDoc(shareRef, {
+        id: shareId,
+        ownerUid: currentAuth.currentUser.uid,
+        bairroId: bairro.id,
+        territorioId: territorio.id,
+        bairroName: bairro.name,
+        territorioName: territorio.name,
+        enderecos: JSON.stringify(territorio.enderecos),
+        createdAt: new Date()
+      });
+      
+      const shareUrl = `${origin}/?share=${shareId}`;
+
+      let msg = `📍 ${bairro.name.toUpperCase()} - TERRITÓRIO ${territorio.name.toUpperCase()}\n\n`;
+      territorio.enderecos.forEach((end, index) => {
+        msg += `${index + 1}. ${end.street}, ${end.number}\n`;
+        if (end.observations) {
+          msg += `- ${end.observations}\n`;
+        }
+      });
+      msg += `\nDepois do trabalho, envie o relatório clicando no link abaixo:\n${shareUrl}`;
+      
+      await navigator.clipboard.writeText(msg);
+      setCopiedId(territorio.id);
+      markTerritorioAssigned(territorio.id);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch (error) {
+      console.error(error);
+      alert("Erro ao copiar e gerar link.");
+    }
   };
 
   const handleSave = () => {
@@ -296,6 +352,15 @@ export const ManualEdit: React.FC = () => {
           addEndereco(modalState.territorioId, formData.street, formData.number, formData.observations, formData.status, formData.statusComment, sDate);
         }
         break;
+      case 'smart_add_endereco':
+        if (formData.street && formData.number && formData.selectedTerritorioId) {
+          const sDate = (formData.status || formData.statusComment) ? new Date().toISOString() : undefined;
+          addEndereco(formData.selectedTerritorioId, formData.street, formData.number, formData.observations, formData.status, formData.statusComment, sDate);
+        } else {
+          alert('Preencha a rua, número e selecione Bairro/Território para salvar.');
+          return; // Prevents closeModal from running so they can fix it
+        }
+        break;
       case 'edit_endereco':
         if (formData.street && formData.number) {
           let sDate = formData.statusDate;
@@ -313,6 +378,9 @@ export const ManualEdit: React.FC = () => {
         if (modalState.entityType === 'bairro') removeBairro(modalState.id);
         else if (modalState.entityType === 'territorio') removeTerritorio(modalState.id);
         else if (modalState.entityType === 'endereco') removeEndereco(modalState.id);
+        break;
+      case 'confirm_reset_statuses':
+        resetTerritorioStatuses(modalState.id);
         break;
     }
     closeModal();
@@ -344,6 +412,23 @@ export const ManualEdit: React.FC = () => {
     }
   };
 
+  const dropAnimation: DropAnimation = {
+    sideEffects: defaultDropAnimationSideEffects({
+      styles: {
+        active: {
+          opacity: '0.5',
+        },
+      },
+    }),
+  };
+
+  const activeTerritorio = activeId 
+    ? db.bairros.flatMap(b => b.territorios).find(t => t.id === activeId)
+    : null;
+  const activeBairro = activeTerritorio 
+    ? db.bairros.find(b => b.id === activeTerritorio.bairroId)
+    : null;
+
   const suggestions: { bairro: Bairro, territorio: Territorio, days: number | null }[] = [];
   const today = new Date();
   
@@ -367,35 +452,26 @@ export const ManualEdit: React.FC = () => {
     return b.days - a.days;
   });
 
-  const dropAnimation: DropAnimation = {
-    sideEffects: defaultDropAnimationSideEffects({
-      styles: {
-        active: {
-          opacity: '0.5',
-        },
-      },
-    }),
-  };
-
-  const activeTerritorio = activeId 
-    ? db.bairros.flatMap(b => b.territorios).find(t => t.id === activeId)
-    : null;
-  const activeBairro = activeTerritorio 
-    ? db.bairros.find(b => b.id === activeTerritorio.bairroId)
-    : null;
-
   return (
     <div className="p-4 md:p-6 bg-bg h-full overflow-y-auto w-full">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 md:mb-6 gap-4 sm:gap-0">
         <h2 className="text-xl md:text-2xl font-semibold text-text-main flex items-center">
           <Map className="mr-2 text-primary" /> Banco de Dados
         </h2>
-        <button 
-          onClick={() => { setModalState({ type: 'add_bairro' }); setFormData({ name: '' }); }}
-          className="w-full sm:w-auto justify-center bg-primary hover:bg-blue-400 text-white px-4 py-2 rounded-md text-sm font-medium flex items-center"
-        >
-          <Plus size={16} className="mr-1" /> Novo Bairro
-        </button>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <button 
+            onClick={() => { setModalState({ type: 'smart_add_endereco' }); setFormData({ street: '', number: '', observations: '', selectedBairroId: '', selectedTerritorioId: '' }); setShowMatches(true); }}
+            className="flex-1 sm:flex-none justify-center bg-secondary hover:bg-emerald-500 text-white px-4 py-2 rounded-md text-sm font-medium flex items-center transition-colors"
+          >
+            <Home size={16} className="mr-2" /> Endereço
+          </button>
+          <button 
+            onClick={() => { setModalState({ type: 'add_bairro' }); setFormData({ name: '' }); }}
+            className="flex-1 sm:flex-none justify-center bg-primary hover:bg-blue-400 text-white px-4 py-2 rounded-md text-sm font-medium flex items-center transition-colors"
+          >
+            <Plus size={16} className="mr-1" /> Bairro
+          </button>
+        </div>
       </div>
 
       {suggestions.length > 0 && (
@@ -405,22 +481,19 @@ export const ManualEdit: React.FC = () => {
           </h3>
           <div className="flex overflow-x-auto pb-2 gap-3 snap-x">
             {suggestions.map((sug, idx) => (
-              <div key={idx} className="shrink-0 w-64 bg-bg border border-border rounded-lg p-3 snap-start">
-                <div className="font-medium text-text-main truncate">{sug.bairro.name}</div>
-                <div className="text-sm text-text-dim truncate mb-2">Território {sug.territorio.name}</div>
-                <div className="flex items-center justify-between mt-auto">
+              <button 
+                key={idx} 
+                onClick={() => { setModalState({ type: 'preview_territorio', bairro: sug.bairro, territorio: sug.territorio }); }}
+                className="shrink-0 w-64 bg-bg border border-border rounded-lg p-3 snap-start hover:border-primary/30 transition-colors text-left flex flex-col"
+              >
+                <div className="font-medium text-text-main truncate w-full">{sug.bairro.name}</div>
+                <div className="text-sm text-text-dim truncate mb-2 w-full">Território {sug.territorio.name}</div>
+                <div className="flex items-center justify-between mt-auto w-full">
                   <span className="text-xs font-medium px-2 py-1 rounded-md bg-surface-accent text-warning">
                     {sug.days === null ? 'Nunca visitado' : `Há ${sug.days} dias`}
                   </span>
-                  <button 
-                    onClick={() => handleCopyWhatsApp(sug.bairro, sug.territorio)}
-                    className="text-whatsapp hover:text-green-400 p-1"
-                    title="Copiar mensagem para WhatsApp"
-                  >
-                    {copiedId === sug.territorio.id ? <Check size={16} /> : <MessageCircle size={16} />}
-                  </button>
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         </div>
@@ -481,35 +554,7 @@ export const ManualEdit: React.FC = () => {
                                 }}
                                 onDelete={(id, name) => setModalState({ type: 'confirm_delete', entityType: 'territorio', id, name })}
                                 onCopy={handleCopyWhatsApp}
-                                onShare={async (b, t) => {
-                                  const shareId = Math.random().toString(36).substring(2, 10);
-                                  const origin = window.location.origin;
-                                  const shareRef = doc(firestoreDb, 'shares', shareId);
-                                  
-                                  // For retrieving current auth
-                                  const currentAuth = (await import('firebase/auth')).getAuth();
-                                  if (!currentAuth.currentUser) {
-                                    alert("Erro: Você precisa estar logado.");
-                                    return;
-                                  }
-
-                                  try {
-                                    await setDoc(shareRef, {
-                                      id: shareId,
-                                      ownerUid: currentAuth.currentUser.uid,
-                                      bairroId: b.id,
-                                      territorioId: t.id,
-                                      bairroName: b.name,
-                                      territorioName: t.name,
-                                      enderecos: JSON.stringify(t.enderecos),
-                                      createdAt: new Date()
-                                    });
-                                    setModalState({ type: 'share_link', url: `${origin}/?share=${shareId}` });
-                                  } catch (err) {
-                                    console.error("Failed to share", err);
-                                    alert("Erro ao criar link. Verifique sua conexão.");
-                                  }
-                                }}
+                                onResetStatuses={(id, name) => setModalState({ type: 'confirm_reset_statuses', id, name })}
                                 copiedId={copiedId}
                                 onEditEndereco={(e) => {
                                   setModalState({ type: 'edit_endereco', id: e.id, street: e.street, number: e.number, observations: e.observations || '', status: e.status, statusComment: e.statusComment, statusDate: e.statusDate }); 
@@ -550,43 +595,54 @@ export const ManualEdit: React.FC = () => {
           modalState.type === 'edit_bairro' ? 'Editar Bairro' :
           modalState.type === 'add_territorio' ? 'Novo Território' :
           modalState.type === 'edit_territorio' ? 'Editar Território' :
-          modalState.type === 'add_endereco' ? 'Novo Endereço' :
+          (modalState.type === 'add_endereco' || modalState.type === 'smart_add_endereco') ? 'Adicionar Endereço Rápido' :
           modalState.type === 'edit_endereco' ? 'Editar Endereço' :
-          modalState.type === 'confirm_delete' ? 'Confirmar Exclusão' : 
-          modalState.type === 'share_link' ? 'Link de Feedback Gerado' : ''
+          modalState.type === 'confirm_reset_statuses' ? 'Resetar Status' :
+          modalState.type === 'preview_territorio' ? 'Visualizar Território' :
+          modalState.type === 'confirm_delete' ? 'Confirmar Exclusão' : ''
         }
       >
         <div className="space-y-4">
-          {modalState.type === 'share_link' ? (
-            <div className="flex flex-col gap-4">
-              <p className="text-sm text-text-dim">
-                Compartilhe o link abaixo com outra pessoa. Ela poderá adicionar observações em cada endereço sem precisar de uma conta.
-              </p>
-              <div className="flex gap-2">
-                <input 
-                  type="text" 
-                  readOnly 
-                  value={modalState.url}
-                  className="w-full bg-bg border border-border text-text-main rounded-md px-3 py-2 outline-none text-sm font-mono overflow-x-auto"
-                />
-              </div>
-              <div className="flex justify-end mt-4">
-                <button 
-                  onClick={() => {
-                    navigator.clipboard.writeText(modalState.url);
-                    alert("Link copiado para a área de transferência!");
-                    closeModal();
-                  }} 
-                  className="bg-primary hover:bg-primary-hover text-white px-4 py-2 rounded-md font-medium transition-colors"
-                >
-                  Copiar e fechar
-                </button>
-              </div>
-            </div>
-          ) : modalState.type === 'confirm_delete' ? (
+          {modalState.type === 'confirm_delete' ? (
             <div>
               <p className="text-text-main">Tem certeza que deseja excluir <strong>{modalState.name}</strong>?</p>
               <p className="text-sm text-red-400 mt-2">Esta ação não pode ser desfeita.</p>
+            </div>
+          ) : modalState.type === 'confirm_reset_statuses' ? (
+            <div>
+              <p className="text-text-main">Tem certeza que deseja limpar todos os status e comentários vinculados do <strong>{modalState.name}</strong>?</p>
+              <p className="text-sm text-warning mt-2">Isso apagará o status "Feito", "Não feito", etc. das casas, juntamente com o comentário de status (as observações permanentes ficarão intactas).</p>
+            </div>
+          ) : modalState.type === 'preview_territorio' && modalState.bairro && modalState.territorio ? (
+            <div className="flex flex-col gap-4">
+              <div className="bg-surface-accent p-4 rounded-xl border border-border">
+                <div className="font-bold text-text-main text-lg mb-1">{modalState.bairro.name}</div>
+                <div className="text-text-dim font-medium mb-4">Território {modalState.territorio.name}</div>
+                
+                <div className="bg-bg rounded-lg border border-border p-3 max-h-[300px] overflow-y-auto w-full">
+                  {modalState.territorio.enderecos.length === 0 ? (
+                    <div className="text-sm text-text-dim italic text-center py-4">Nenhum endereço cadastrado.</div>
+                  ) : (
+                    <div className="space-y-3">
+                      {modalState.territorio.enderecos.map((end: any) => (
+                        <div key={end.id} className="border-b border-border/50 pb-2 last:border-0 last:pb-0 text-left">
+                          <div className="font-semibold text-text-main text-sm">{end.street}, {end.number}</div>
+                          {end.observations && (
+                            <div className="text-xs text-text-dim mt-1 italic break-words">"{end.observations}"</div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <button 
+                onClick={() => handleCopyWhatsApp(modalState.bairro as any, modalState.territorio as any)}
+                className="w-full bg-whatsapp text-white py-3 rounded-xl font-medium shadow-sm hover:bg-green-500 flex items-center justify-center gap-2 transition-colors"
+              >
+                <MessageCircle size={18} /> Copiar P/ WhatsApp
+              </button>
             </div>
           ) : (
             <>
@@ -629,18 +685,111 @@ export const ManualEdit: React.FC = () => {
                   )}
                 </div>
               )}
-              {(modalState.type === 'add_endereco' || modalState.type === 'edit_endereco') && (
+              {(modalState.type === 'add_endereco' || modalState.type === 'edit_endereco' || modalState.type === 'smart_add_endereco') && (
                 <>
-                  <div>
-                    <label className="block text-sm font-medium text-text-dim mb-1">Rua</label>
-                    <input 
-                      type="text" 
-                      value={formData.street || ''} 
-                      onChange={e => setFormData({ ...formData, street: e.target.value })}
-                      className="w-full bg-bg border border-border text-text-main rounded-md px-3 py-2 focus:ring-1 focus:ring-primary focus:border-primary outline-none"
-                      autoFocus
-                    />
-                  </div>
+                  {modalState.type === 'smart_add_endereco' && (
+                    <div className="mb-4 space-y-4">
+                      <div className="relative">
+                        <label className="block text-sm font-medium text-text-dim mb-1">Buscar ou Digitar Rua</label>
+                        <input 
+                          type="text" 
+                          value={formData.street || ''} 
+                          onChange={e => {
+                            setFormData({ ...formData, street: e.target.value, selectedTerritorioId: '', selectedBairroId: '' });
+                            setShowMatches(true);
+                          }}
+                          onFocus={() => setShowMatches(true)}
+                          className="w-full bg-bg border border-primary/50 text-text-main rounded-md px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary outline-none"
+                          placeholder="Digite o nome da rua..."
+                          autoFocus
+                        />
+                        {showMatches && smartStreetMatches.length > 0 && (
+                          <div className="absolute z-10 w-full mt-1 bg-surface border border-border rounded-md shadow-lg overflow-hidden">
+                            {smartStreetMatches.map((m, i) => (
+                              <button
+                                key={i}
+                                className="w-full text-left px-3 py-2 text-sm hover:bg-surface-accent border-b border-border/50 last:border-0"
+                                onClick={() => {
+                                  setFormData({ ...formData, street: m.street, selectedBairroId: m.defaultBairroId, selectedTerritorioId: m.defaultTerritorioId });
+                                  setShowMatches(false);
+                                }}
+                              >
+                                <div className="font-medium text-text-main">{m.street}</div>
+                                <div className="text-xs text-text-dim text-primary/80">
+                                  {m.bairroName} • Território {m.territorioName}
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Dropdowns for Bairro and Territorio */}
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        <div className="flex-1">
+                          <label className="block text-sm font-medium text-text-dim mb-1">Bairro</label>
+                          <select 
+                            value={formData.selectedBairroId || ''} 
+                            onChange={e => setFormData({ ...formData, selectedBairroId: e.target.value, selectedTerritorioId: '' })}
+                            className="w-full bg-bg border border-border text-text-main rounded-md px-3 py-2 outline-none"
+                          >
+                            <option value="" disabled>Selecione ou busque na tabela...</option>
+                            {db.bairros.map(b => (
+                              <option key={b.id} value={b.id}>{b.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="flex-1">
+                          <label className="block text-sm font-medium text-text-dim mb-1">Território</label>
+                          <select 
+                            value={formData.selectedTerritorioId || ''} 
+                            onChange={e => setFormData({ ...formData, selectedTerritorioId: e.target.value })}
+                            className="w-full bg-bg border border-border text-text-main rounded-md px-3 py-2 outline-none"
+                            disabled={!formData.selectedBairroId}
+                          >
+                            <option value="" disabled>Selecione...</option>
+                            {db.bairros.find(b => b.id === formData.selectedBairroId)?.territorios.map(t => (
+                              <option key={t.id} value={t.id}>{t.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      {formData.selectedTerritorioId && (
+                        <div className="p-3 bg-surface-accent/30 border border-border/50 rounded-lg">
+                          <div className="text-xs font-semibold text-text-dim mb-1 flex items-center">
+                            <Info size={12} className="mr-1" /> Ruas cadastradas neste território:
+                          </div>
+                          <div className="text-xs text-text-main leading-relaxed">
+                            {(() => {
+                              const b = db.bairros.find(x => x.id === formData.selectedBairroId);
+                              if (!b) return null;
+                              const t = b.territorios.find(x => x.id === formData.selectedTerritorioId);
+                              if (!t || t.enderecos.length === 0) return <span className="italic text-text-dim">Nenhuma rua cadastrada ainda.</span>;
+                              
+                              const uniqStreets = Array.from(new Set(t.enderecos.map(e => e.street)));
+                              return uniqStreets.join(', ');
+                            })()}
+                          </div>
+                        </div>
+                      )}
+                      
+                      <hr className="border-border/50" />
+                    </div>
+                  )}
+
+                  {modalState.type !== 'smart_add_endereco' && (
+                    <div>
+                      <label className="block text-sm font-medium text-text-dim mb-1">Rua</label>
+                      <input 
+                        type="text" 
+                        value={formData.street || ''} 
+                        onChange={e => setFormData({ ...formData, street: e.target.value })}
+                        className="w-full bg-bg border border-border text-text-main rounded-md px-3 py-2 focus:ring-1 focus:ring-primary focus:border-primary outline-none"
+                        autoFocus
+                      />
+                    </div>
+                  )}
                   <div>
                     <label className="block text-sm font-medium text-text-dim mb-1">Número</label>
                     <input 
@@ -689,24 +838,29 @@ export const ManualEdit: React.FC = () => {
             </>
           )}
           
-          {modalState.type !== 'share_link' && (
-            <div className="flex justify-end space-x-3 pt-4 border-t border-border mt-4">
-              <button 
-                onClick={closeModal}
-                className="px-4 py-2 text-text-main bg-surface-accent hover:bg-border rounded-md font-medium transition-colors"
-              >
-                Cancelar
-              </button>
+          
+          <div className="flex justify-end space-x-3 pt-4 border-t border-border mt-4">
+            <button 
+              onClick={closeModal}
+              className="px-4 py-2 text-text-main bg-surface-accent hover:bg-border rounded-md font-medium transition-colors"
+            >
+              {modalState.type === 'preview_territorio' ? 'Fechar' : 'Cancelar'}
+            </button>
+            {modalState.type !== 'preview_territorio' && (
               <button 
                 onClick={handleSave}
                 className={`px-4 py-2 text-white rounded-md font-medium transition-colors ${
-                  modalState.type === 'confirm_delete' ? 'bg-red-500 hover:bg-red-600' : 'bg-primary hover:bg-blue-400'
+                  modalState.type === 'confirm_delete' ? 'bg-red-500 hover:bg-red-600' : 
+                  modalState.type === 'confirm_reset_statuses' ? 'bg-warning hover:bg-yellow-600' : 
+                  'bg-primary hover:bg-blue-400'
                 }`}
               >
-                {modalState.type === 'confirm_delete' ? 'Excluir' : 'Salvar'}
+                {modalState.type === 'confirm_delete' ? 'Excluir' : 
+                 modalState.type === 'confirm_reset_statuses' ? 'Limpar Status' : 
+                 'Salvar'}
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </Modal>
     </div>

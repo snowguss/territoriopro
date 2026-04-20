@@ -106,6 +106,16 @@ service cloud.firestore {
               data.read is bool;
     }
 
+    function isValidPublicBoard(data) {
+       return hasRequiredFields(['id', 'ownerUid', 'congregationName', 'availableTerritories', 'updatedAt']) &&
+              hasOnlyAllowedFields(['id', 'ownerUid', 'congregationName', 'availableTerritories', 'updatedAt']) &&
+              data.id is string &&
+              data.ownerUid is string &&
+              data.congregationName is string && data.congregationName.size() <= 100 &&
+              data.availableTerritories is string && data.availableTerritories.size() <= 1048576 && // up to 1MB json
+              data.updatedAt is timestamp;
+    }
+
     // ===============================================================
     // Rules
     // ===============================================================
@@ -115,6 +125,20 @@ service cloud.firestore {
       allow create: if isOwner(userId) && isValidUserProfile(request.resource.data) && request.resource.data.uid == userId;
       allow update: if isOwner(userId) && isValidUserProfile(request.resource.data) && request.resource.data.uid == resource.data.uid;
       allow delete: if false;
+    }
+
+    match /boards/{boardId} {
+      // Anyone can see the storefront
+      allow read: if true;
+      // Only owner can create or update it
+      allow create: if isOwner(request.resource.data.ownerUid) && 
+                    isValidPublicBoard(request.resource.data) &&
+                    request.resource.data.id == boardId;
+      allow update: if isDocOwner() &&
+                    isValidPublicBoard(request.resource.data) &&
+                    request.resource.data.id == resource.data.id &&
+                    request.resource.data.ownerUid == resource.data.ownerUid;
+      allow delete: if isDocOwner();
     }
     
     match /shares/{shareId} {

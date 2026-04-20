@@ -24,6 +24,7 @@ interface DatabaseContextType {
   addEndereco: (territorioId: string, street: string, number: string, observations?: string, status?: string, statusComment?: string, statusDate?: string) => Endereco;
   updateEndereco: (id: string, street: string, number: string, observations?: string, status?: string, statusComment?: string, statusDate?: string) => void;
   removeEndereco: (id: string) => void;
+  resetTerritorioStatuses: (territorioId: string) => void;
   markTerritorioAssigned: (id: string) => void;
   saveChat: (session: ChatSession) => void;
   deleteChat: (id: string) => void;
@@ -69,7 +70,7 @@ const cleanExpiredStatuses = (data: Database): Database => {
 };
 
 export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [db, setDbState] = useState<Database>(() => {
     // If not logged in but it has local data, maybe we load it initially, 
     // but the final load should happen from Firestore when auth is ready
@@ -101,10 +102,11 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   });
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !profile) return;
     
     // Initial fetch from Firestore
-    const userRef = doc(firestoreDb, 'users', user.uid);
+    const targetUid = profile.masterUid || user.uid;
+    const userRef = doc(firestoreDb, 'users', targetUid);
     const unsubscribe = onSnapshot(userRef, (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
@@ -122,19 +124,19 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     });
 
     return () => unsubscribe();
-  }, [user]);
+  }, [user, profile]);
 
   // Sync back to Firestore on any change
   useEffect(() => {
     // We only write to firestore if it's not the initial load to prevent overwriting cloud with potentially empty initial state
-    if (!user || isInitialLoad) return;
+    if (!user || !profile || isInitialLoad) return;
 
     // Use debounce to prevent too many writes when typing
     const timer = setTimeout(async () => {
       try {
-        const userRef = doc(firestoreDb, 'users', user.uid);
+        const targetUid = profile.masterUid || user.uid;
+        const userRef = doc(firestoreDb, 'users', targetUid);
         await setDoc(userRef, {
-          uid: user.uid,
           database: JSON.stringify(dbRef.current)
         }, { merge: true });
         
@@ -146,7 +148,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, [db, user, isInitialLoad]);
+  }, [db, user, profile, isInitialLoad]);
 
   const addBairro = (name: string) => {
     const newBairro: Bairro = { id: uuidv4(), name, territorios: [] };
@@ -259,6 +261,28 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           ...t,
           enderecos: t.enderecos.filter(e => e.id !== id)
         }))
+      }))
+    }));
+  };
+
+  const resetTerritorioStatuses = (territorioId: string) => {
+    setDb(prev => ({
+      ...prev,
+      bairros: prev.bairros.map(b => ({
+        ...b,
+        territorios: b.territorios.map(t => 
+          t.id === territorioId 
+            ? {
+                ...t,
+                enderecos: t.enderecos.map(e => ({
+                  ...e,
+                  status: undefined,
+                  statusComment: undefined,
+                  statusDate: undefined
+                }))
+              }
+            : t
+        )
       }))
     }));
   };
@@ -487,6 +511,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       addBairro, updateBairro, removeBairro,
       addTerritorio, updateTerritorio, removeTerritorio,
       addEndereco, updateEndereco, removeEndereco,
+      resetTerritorioStatuses,
       markTerritorioAssigned,
       saveChat, deleteChat,
       exportDb, importDb, mergeBulkData, updateSettings, clearDatabase, moveTerritorio,

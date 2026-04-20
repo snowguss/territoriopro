@@ -12,6 +12,8 @@ export interface Territorio {
   id: string;
   bairroId: string;
   name: string; // e.g., "6" or "Território 6"
+  type?: 'REGULAR' | 'CENSUS'; // REGULAR for addresses, CENSUS for mapping blocks
+  instructions?: string; // Text for census limits or general instructions
   lastAssignedDate?: string; // ISO string
   enderecos: Endereco[];
 }
