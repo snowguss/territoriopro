@@ -13,17 +13,15 @@ import { Login } from './components/Login';
 import { Dashboard } from './components/Dashboard';
 import { FeedbackView } from './components/FeedbackView';
 import { PublicBoardView } from './components/PublicBoardView';
-import { Workspace } from './components/Workspace';
-import { MessageSquare, Database as DatabaseIcon, Settings as SettingsIcon, Map, Loader2, CheckCircle2, AlertCircle, LogOut, Home, Key, MapPin } from 'lucide-react';
+import { MessageSquare, Database as DatabaseIcon, Settings as SettingsIcon, Map, Loader2, CheckCircle2, AlertCircle, LogOut, Home } from 'lucide-react';
 import { cn } from './lib/utils';
 
 type Tab = 'dashboard' | 'chat' | 'database' | 'settings';
 
-function AdminAppContent() {
+function AppContent() {
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const { importState } = useDatabase();
-  const { user, profile, logOut } = useAuth();
-
+  const { user, logOut } = useAuth();
 
   return (
     <div className="flex flex-col md:flex-row h-screen bg-bg font-sans text-text-main relative">
@@ -197,27 +195,59 @@ function AdminAppContent() {
 }
 
 const AppRouter = () => {
-  const { user, profile, loading } = useAuth();
+  const { user, loading } = useAuth();
   
   const searchParams = new URLSearchParams(window.location.search);
   const shareId = searchParams.get('share');
   const boardId = searchParams.get('board');
 
+  if (shareId) {
+    return <FeedbackView shareId={shareId} />;
+  }
+
   if (boardId) {
     return <PublicBoardView boardId={boardId} />;
   }
 
-  // Se tem shareId e não tá logado, a gente obriga a logar para cair na tela de Publicador. 
-  // Ou usamos a FeedbackView? A FeedbackView atual é anônima.
-  // Vamos manter a FeedbackView nativa pra não quebrar a funcionalidade de quem não tem conta por enquanto.
-  if (shareId && !user) {
-    return <FeedbackView shareId={shareId} />;
-  }
-
-  if (loading || (user && !profile)) {
+  if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-bg">
-        <Loader2 size={32} className="animate-spin text-primary" />
+      <div className="flex flex-col md:flex-row h-screen bg-bg relative overflow-hidden">
+        {/* Mobile Header Skeleton */}
+        <div className="md:hidden flex items-center justify-between p-4 bg-surface border-b border-border shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="h-5 w-5 bg-surface-accent rounded-md animate-pulse"></div>
+            <div className="h-5 w-32 bg-surface-accent rounded-md animate-pulse"></div>
+          </div>
+          <div className="h-5 w-5 bg-surface-accent rounded-md animate-pulse"></div>
+        </div>
+
+        {/* Sidebar Skeleton (Desktop) */}
+        <div className="hidden md:flex flex-col bg-surface border-r border-border shrink-0 w-64 p-4 animate-pulse">
+          <div className="flex items-center gap-2.5 mb-8 px-2">
+            <div className="h-6 w-6 bg-surface-accent rounded-md"></div>
+            <div className="h-6 w-32 bg-surface-accent rounded-md"></div>
+          </div>
+          <div className="flex flex-col gap-2">
+            <div className="h-10 w-full bg-surface-accent rounded-xl"></div>
+            <div className="h-10 w-full bg-surface-accent/50 rounded-xl"></div>
+            <div className="h-10 w-full bg-surface-accent/50 rounded-xl"></div>
+            <div className="h-10 w-full bg-surface-accent/50 rounded-xl"></div>
+          </div>
+        </div>
+
+        {/* Main Content Skeleton */}
+        <div className="flex-1 p-4 md:p-6 lg:p-8 animate-pulse overflow-hidden">
+          <div className="h-8 w-48 bg-surface-accent rounded-md mb-6 md:mb-8"></div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 sm:gap-4 mb-6 sm:mb-8">
+            <div className="h-28 sm:h-32 bg-surface-accent rounded-xl sm:rounded-2xl border border-border/50"></div>
+            <div className="h-28 sm:h-32 bg-surface-accent rounded-xl sm:rounded-2xl border border-border/50"></div>
+            <div className="h-28 sm:h-32 bg-surface-accent rounded-xl sm:rounded-2xl border border-border/50"></div>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className="order-2 lg:order-1 lg:col-span-7 xl:col-span-8 h-64 md:h-[350px] bg-surface border border-border rounded-2xl"></div>
+            <div className="order-1 lg:order-2 lg:col-span-5 xl:col-span-4 h-64 md:h-[350px] bg-surface border border-border rounded-2xl"></div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -229,7 +259,7 @@ const AppRouter = () => {
   // Wrapped in DB provider only when authenticated (to avoid reading offline state incorrectly)
   return (
     <DatabaseProvider>
-      {profile?.role === 'ADMIN' ? <AdminAppContent /> : <Workspace />}
+      <AppContent />
     </DatabaseProvider>
   );
 };

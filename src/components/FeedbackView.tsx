@@ -136,8 +136,29 @@ export const FeedbackView: React.FC<FeedbackViewProps> = ({ shareId }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-bg">
-        <Loader2 size={32} className="animate-spin text-primary" />
+      <div className="min-h-screen bg-bg relative overflow-y-auto">
+        <div className="max-w-2xl mx-auto p-4 md:p-8 relative z-10 animate-pulse">
+          <div className="text-center mb-8 pt-8">
+            <div className="mx-auto w-16 h-16 bg-surface-accent border border-border rounded-xl mb-4" />
+            <div className="mx-auto h-8 bg-surface-accent rounded-xl w-[250px] mb-2" />
+            <div className="mx-auto h-4 bg-surface-accent rounded max-w-[150px]" />
+          </div>
+          
+          <div className="space-y-4">
+            {[1, 2, 3, 4, 5].map(i => (
+              <div key={i} className="bg-surface border border-border rounded-2xl p-4 md:p-6 p-4">
+                <div className="flex flex-col gap-3">
+                  <div className="h-5 bg-surface-accent rounded-[4px] w-2/3" />
+                  <div className="flex gap-2.5 mt-2">
+                    <div className="h-8 w-20 bg-surface-accent rounded-full" />
+                    <div className="h-8 w-24 bg-surface-accent rounded-full" />
+                    <div className="h-8 w-24 bg-surface-accent rounded-full" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }

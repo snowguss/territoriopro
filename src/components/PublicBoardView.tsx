@@ -107,8 +107,37 @@ export const PublicBoardView: React.FC<PublicBoardProps> = ({ boardId }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-bg relative overflow-hidden">
-        <Loader2 size={32} className="animate-spin text-primary" />
+      <div className="min-h-screen bg-bg relative overflow-y-auto">
+        <div className="max-w-4xl mx-auto p-4 md:p-8 relative z-10 animate-pulse">
+          <header className="mb-8 pt-6 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+            <div className="flex items-center justify-center md:justify-start gap-3">
+              <div className="w-10 h-10 bg-surface-accent rounded-xl border border-border" />
+              <div>
+                <div className="h-6 w-48 bg-surface-accent rounded-md mb-2" />
+                <div className="h-4 w-64 bg-surface-accent rounded" />
+              </div>
+            </div>
+            <div className="h-10 w-32 bg-surface-accent rounded-xl mx-auto md:mx-0" />
+          </header>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[1, 2, 3, 4, 5, 6].map(i => (
+              <div key={i} className="bg-surface border border-border rounded-2xl p-5">
+                <div className="flex flex-col gap-4">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <div className="h-4 w-16 bg-surface-accent rounded mb-2" />
+                      <div className="h-5 w-32 bg-surface-accent rounded-md" />
+                    </div>
+                    <div className="w-8 h-8 rounded-full bg-surface-accent" />
+                  </div>
+                  <div className="h-[1px] w-full bg-border mt-1" />
+                  <div className="h-4 w-24 bg-surface-accent rounded" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }

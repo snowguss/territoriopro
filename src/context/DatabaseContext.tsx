@@ -70,7 +70,7 @@ const cleanExpiredStatuses = (data: Database): Database => {
 };
 
 export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const [db, setDbState] = useState<Database>(() => {
     // If not logged in but it has local data, maybe we load it initially, 
     // but the final load should happen from Firestore when auth is ready
@@ -102,11 +102,10 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   });
 
   useEffect(() => {
-    if (!user || !profile) return;
+    if (!user) return;
     
     // Initial fetch from Firestore
-    const targetUid = profile.masterUid || user.uid;
-    const userRef = doc(firestoreDb, 'users', targetUid);
+    const userRef = doc(firestoreDb, 'users', user.uid);
     const unsubscribe = onSnapshot(userRef, (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
@@ -124,19 +123,19 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     });
 
     return () => unsubscribe();
-  }, [user, profile]);
+  }, [user]);
 
   // Sync back to Firestore on any change
   useEffect(() => {
     // We only write to firestore if it's not the initial load to prevent overwriting cloud with potentially empty initial state
-    if (!user || !profile || isInitialLoad) return;
+    if (!user || isInitialLoad) return;
 
     // Use debounce to prevent too many writes when typing
     const timer = setTimeout(async () => {
       try {
-        const targetUid = profile.masterUid || user.uid;
-        const userRef = doc(firestoreDb, 'users', targetUid);
+        const userRef = doc(firestoreDb, 'users', user.uid);
         await setDoc(userRef, {
+          uid: user.uid,
           database: JSON.stringify(dbRef.current)
         }, { merge: true });
         
@@ -148,7 +147,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, [db, user, profile, isInitialLoad]);
+  }, [db, user, isInitialLoad]);
 
   const addBairro = (name: string) => {
     const newBairro: Bairro = { id: uuidv4(), name, territorios: [] };
