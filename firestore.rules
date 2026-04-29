@@ -80,8 +80,8 @@ service cloud.firestore {
     }
 
     function isValidTerritoryShare(data) {
-       let fields = ['id', 'ownerUid', 'bairroId', 'territorioId', 'bairroName', 'territorioName', 'enderecos', 'createdAt'];
-       return data.keys().hasAll(fields) && data.keys().size() == 8 &&
+       return data.keys().hasAll(['id', 'ownerUid', 'bairroId', 'territorioId', 'bairroName', 'territorioName', 'enderecos', 'createdAt']) && 
+              data.keys().size() == 8 &&
               data.id is string &&
               data.ownerUid is string &&
               data.bairroId is string &&
@@ -93,8 +93,8 @@ service cloud.firestore {
     }
     
     function isValidFeedback(data) {
-       let fields = ['id', 'shareId', 'ownerUid', 'territorioId', 'bairroId', 'publisherName', 'notes', 'createdAt', 'read'];
-       return data.keys().hasAll(fields) && data.keys().size() == 9 &&
+       return data.keys().hasAll(['id', 'shareId', 'ownerUid', 'territorioId', 'bairroId', 'publisherName', 'notes', 'createdAt', 'read']) && 
+              data.keys().size() == 9 &&
               data.id is string &&
               data.shareId is string &&
               data.ownerUid is string &&
@@ -107,8 +107,8 @@ service cloud.firestore {
     }
 
     function isValidPublicBoard(data) {
-       let fields = ['id', 'ownerUid', 'congregationName', 'availableTerritories', 'updatedAt'];
-       return data.keys().hasAll(fields) && data.keys().size() == 5 &&
+       return data.keys().hasAll(['id', 'ownerUid', 'congregationName', 'availableTerritories', 'updatedAt']) && 
+              data.keys().size() == 5 &&
               data.id is string &&
               data.ownerUid is string &&
               data.congregationName is string && data.congregationName.size() <= 100 &&

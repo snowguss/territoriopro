@@ -21,6 +21,8 @@ export const Login: React.FC = () => {
         setError('Este domínio não está autorizado no Firebase. Por favor, abra o app em uma nova aba.');
       } else if (err.code === 'auth/popup-closed-by-user') {
         setError('O login foi cancelado. Tente novamente.');
+      } else if (err.message && err.message.includes('missing initial state')) {
+        setError('Erro de sessão (missing initial state). Por favor, CLIQUE NO ÍCONE NO CANTO SUPERIOR DIREITO para abrir em uma nova aba e fazer login.');
       } else {
         setError(`Erro ao fazer login: ${err.message || 'Tente novamente.'}`);
       }
