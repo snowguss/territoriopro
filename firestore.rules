@@ -62,8 +62,8 @@ service cloud.firestore {
       return request.resource.data.keys().hasAll(fields);
     }
     
-    function hasOnlyAllowedFields(fields) {
-       return request.resource.data.keys().hasOnly(fields);
+    function hasOnlyAllowedFields(data, fields) {
+       return data.keys().hasAll(fields) && data.keys().size() == fields.size();
     }
 
     // ===============================================================
@@ -71,7 +71,7 @@ service cloud.firestore {
     // ===============================================================
     
     function isValidUserProfile(data) {
-       return hasRequiredFields(['uid', 'database']) &&
+       return data.keys().hasAll(['uid', 'database']) && (data.keys().size() >= 2 && data.keys().size() <= 5) &&
               data.uid is string &&
               data.database is string &&
               (!('email' in data) || data.email is string) &&
@@ -80,8 +80,8 @@ service cloud.firestore {
     }
 
     function isValidTerritoryShare(data) {
-       return hasRequiredFields(['id', 'ownerUid', 'bairroId', 'territorioId', 'bairroName', 'territorioName', 'enderecos', 'createdAt']) &&
-              hasOnlyAllowedFields(['id', 'ownerUid', 'bairroId', 'territorioId', 'bairroName', 'territorioName', 'enderecos', 'createdAt']) &&
+       let fields = ['id', 'ownerUid', 'bairroId', 'territorioId', 'bairroName', 'territorioName', 'enderecos', 'createdAt'];
+       return data.keys().hasAll(fields) && data.keys().size() == 8 &&
               data.id is string &&
               data.ownerUid is string &&
               data.bairroId is string &&
@@ -93,8 +93,8 @@ service cloud.firestore {
     }
     
     function isValidFeedback(data) {
-       return hasRequiredFields(['id', 'shareId', 'ownerUid', 'territorioId', 'bairroId', 'publisherName', 'notes', 'createdAt', 'read']) &&
-              hasOnlyAllowedFields(['id', 'shareId', 'ownerUid', 'territorioId', 'bairroId', 'publisherName', 'notes', 'createdAt', 'read']) &&
+       let fields = ['id', 'shareId', 'ownerUid', 'territorioId', 'bairroId', 'publisherName', 'notes', 'createdAt', 'read'];
+       return data.keys().hasAll(fields) && data.keys().size() == 9 &&
               data.id is string &&
               data.shareId is string &&
               data.ownerUid is string &&
@@ -107,8 +107,8 @@ service cloud.firestore {
     }
 
     function isValidPublicBoard(data) {
-       return hasRequiredFields(['id', 'ownerUid', 'congregationName', 'availableTerritories', 'updatedAt']) &&
-              hasOnlyAllowedFields(['id', 'ownerUid', 'congregationName', 'availableTerritories', 'updatedAt']) &&
+       let fields = ['id', 'ownerUid', 'congregationName', 'availableTerritories', 'updatedAt'];
+       return data.keys().hasAll(fields) && data.keys().size() == 5 &&
               data.id is string &&
               data.ownerUid is string &&
               data.congregationName is string && data.congregationName.size() <= 100 &&

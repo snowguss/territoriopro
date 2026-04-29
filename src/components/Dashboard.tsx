@@ -25,6 +25,14 @@ export const Dashboard: React.FC = () => {
       const data = snapshot.docs.map(doc => ({ ...doc.data(), docId: doc.id }) as any);
       data.sort((a, b) => b.createdAt?.toMillis() - a.createdAt?.toMillis());
       setFeedbacks(data);
+    }, (error) => {
+      const errInfo = {
+        error: error.message,
+        operationType: 'get',
+        path: 'feedbacks',
+        authInfo: { userId: user?.uid }
+      };
+      console.error('Firestore Error: ', JSON.stringify(errInfo));
     });
     return () => unsubscribe();
   }, [user]);
@@ -123,18 +131,29 @@ export const Dashboard: React.FC = () => {
       
       await import('firebase/firestore').then(({ setDoc }) => {
         return setDoc(shareRef, {
+          id: shareId,
+          ownerUid: currentAuth.currentUser?.uid,
           bairroId: bairro.id,
           territorioId: territorio.id,
-          createdAt: new Date(),
-          ownerUid: currentAuth.currentUser?.uid,
-          authorName: user?.email || 'Publicador'
+          bairroName: bairro.name,
+          territorioName: territorio.name,
+          enderecos: JSON.stringify(territorio.enderecos),
+          createdAt: new Date()
         });
+      }).catch(err => {
+        const errInfo = {
+          error: err instanceof Error ? err.message : String(err),
+          operationType: 'write',
+          path: `shares/${shareId}`,
+          authInfo: { userId: currentAuth.currentUser?.uid }
+        };
+        console.error('Firestore Error: ', JSON.stringify(errInfo));
+        throw new Error(JSON.stringify(errInfo));
       });
 
       const shareUrl = `${origin}?share=${shareId}`;
       const msg = `Você pegou o ${bairro.name} - ${territorio.name}! Acesse sua lista de endereços aqui: ${shareUrl}`;
       await navigator.clipboard.writeText(msg);
-      // Removed copiedId since it's just a one off click in preview
       alert('Mensagem copiada para a área de transferência!');
     } catch (err) {
       console.error('Falha ao copiar:', err);

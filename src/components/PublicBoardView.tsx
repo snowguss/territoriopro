@@ -73,6 +73,15 @@ export const PublicBoardView: React.FC<PublicBoardProps> = ({ boardId }) => {
         notes: claimNotes,
         createdAt: new Date(),
         read: false
+      }).catch(err => {
+        const errInfo = {
+          error: err instanceof Error ? err.message : String(err),
+          operationType: 'write',
+          path: `feedbacks/${claimId}`,
+          authInfo: { userId: null } // Public view, user is likely anonymous or unauthenticated
+        };
+        console.error('Firestore Error: ', JSON.stringify(errInfo));
+        throw new Error(JSON.stringify(errInfo));
       });
 
       const origin = window.location.origin;

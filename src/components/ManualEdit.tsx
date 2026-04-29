@@ -301,6 +301,15 @@ export const ManualEdit: React.FC = () => {
         territorioName: territorio.name,
         enderecos: JSON.stringify(territorio.enderecos),
         createdAt: new Date()
+      }).catch(err => {
+        const errInfo = {
+          error: err instanceof Error ? err.message : String(err),
+          operationType: 'write',
+          path: `shares/${shareId}`,
+          authInfo: { userId: currentAuth.currentUser?.uid }
+        };
+        console.error('Firestore Error: ', JSON.stringify(errInfo));
+        throw new Error(JSON.stringify(errInfo));
       });
       
       const shareUrl = `${origin}/?share=${shareId}`;

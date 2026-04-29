@@ -120,6 +120,15 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }
       }
       setIsInitialLoad(false);
+    }, (error) => {
+      const errInfo = {
+        error: error.message,
+        operationType: 'get',
+        path: `users/${user.uid}`,
+        authInfo: { userId: user.uid }
+      };
+      console.error('Firestore Error: ', JSON.stringify(errInfo));
+      setIsInitialLoad(false);
     });
 
     return () => unsubscribe();
@@ -142,7 +151,13 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         // Optionally update the local fallback
         localStorage.setItem('territory_db', JSON.stringify(dbRef.current));
       } catch (error) {
-        console.error('Failed to sync to database', error);
+        const errInfo = {
+          error: error instanceof Error ? error.message : String(error),
+          operationType: 'write',
+          path: `users/${user.uid}`,
+          authInfo: { userId: user.uid }
+        };
+        console.error('Firestore Error: ', JSON.stringify(errInfo));
       }
     }, 1000);
 
