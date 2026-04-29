@@ -13,8 +13,17 @@ export const Login: React.FC = () => {
       setError('');
       await signIn();
     } catch (err: any) {
-      console.error(err);
-      setError('Erro ao fazer login com o Google. Tente novamente.');
+      console.error('Login error:', err);
+      
+      if (err.code === 'auth/popup-blocked') {
+        setError('O pop-up de login foi bloqueado. Por favor, permita os pop-ups ou abra o app em uma nova aba.');
+      } else if (err.code === 'auth/unauthorized-domain') {
+        setError('Este domínio não está autorizado no Firebase. Por favor, abra o app em uma nova aba.');
+      } else if (err.code === 'auth/popup-closed-by-user') {
+        setError('O login foi cancelado. Tente novamente.');
+      } else {
+        setError(`Erro ao fazer login: ${err.message || 'Tente novamente.'}`);
+      }
     } finally {
       setLoading(false);
     }
@@ -59,6 +68,11 @@ export const Login: React.FC = () => {
           )}
           <span>Entrar com o Google</span>
         </button>
+
+        <p className="mt-6 text-xs text-text-dim text-center">
+          Dificuldades para fazer login? <br/>
+          Tente abrir o aplicativo em uma <strong>nova guia</strong> do navegador clicando no ícone no topo direito.
+        </p>
       </div>
     </div>
   );
