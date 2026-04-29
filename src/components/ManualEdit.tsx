@@ -452,11 +452,18 @@ export const ManualEdit: React.FC = () => {
     return b.days - a.days;
   });
 
+  const totalAddresses = db.bairros.reduce((acc, bairro) => 
+    acc + bairro.territorios.reduce((tAcc, territorio) => 
+      tAcc + (territorio.enderecos?.length || 0), 0), 0);
+
   return (
     <div className="p-4 md:p-6 bg-bg h-full overflow-y-auto w-full">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 md:mb-6 gap-4 sm:gap-0">
         <h2 className="text-xl md:text-2xl font-semibold text-text-main flex items-center">
           <Map className="mr-2 text-primary" /> Banco de Dados
+          <span className="ml-3 px-2 py-0.5 bg-surface-accent text-text-dim text-sm rounded-full font-medium">
+            {totalAddresses} endereços
+          </span>
         </h2>
         <div className="flex gap-2 w-full sm:w-auto">
           <button 
