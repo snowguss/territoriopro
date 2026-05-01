@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useDatabase } from '../context/DatabaseContext';
-import { Plus, Trash2, Edit2, ChevronDown, ChevronRight, MapPin, Home, Map, MessageCircle, Check, AlertCircle, GripVertical, Share2, Link, MessageSquarePlus, RotateCcw, Info } from 'lucide-react';
+import { Plus, Trash2, Edit2, ChevronDown, ChevronRight, MapPin, Home, Map, MessageCircle, Check, AlertCircle, GripVertical, Share2, Link, MessageSquarePlus, RotateCcw, Info, CheckCircle2 } from 'lucide-react';
 import { Bairro, Territorio, Endereco } from '../types';
 import { format, differenceInDays } from 'date-fns';
 import { Modal } from './Modal';
@@ -26,7 +26,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { cn } from '../lib/utils';
 import { db as firestoreDb } from '../firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -77,7 +77,7 @@ const SortableTerritorioItem: React.FC<SortableTerritorioProps> = ({
   };
 
   return (
-    <div ref={setNodeRef} style={style} className="border border-border rounded-md ml-2 md:ml-6 bg-bg overflow-hidden">
+    <div id={`territorio-${territorio.id}`} ref={setNodeRef} style={style} className="border border-border rounded-md ml-2 md:ml-6 bg-bg overflow-hidden">
       <div className="px-2 py-2 md:px-3 flex justify-between items-center text-sm bg-surface">
         <div 
           className="flex items-center cursor-pointer flex-1 font-medium text-text-main flex-wrap gap-y-1"
@@ -222,15 +222,52 @@ const BairroHeader: React.FC<BairroHeaderProps> = ({
 };
 
 export const ManualEdit: React.FC = () => {
+  const { user } = useAuth();
   const { db, addBairro, removeBairro, updateBairro, addTerritorio, removeTerritorio, updateTerritorio, addEndereco, removeEndereco, updateEndereco, markTerritorioAssigned, moveTerritorio, resetTerritorioStatuses } = useDatabase();
   const [expandedBairros, setExpandedBairros] = useState<Record<string, boolean>>({});
   const [expandedTerritorios, setExpandedTerritorios] = useState<Record<string, boolean>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [feedbacks, setFeedbacks] = useState<any[]>([]);
   
   const [modalState, setModalState] = useState<ModalState>({ type: 'none' });
   const [formData, setFormData] = useState<Record<string, string>>({});
   const [showMatches, setShowMatches] = useState(false);
+
+  React.useEffect(() => {
+    if (!user) return;
+
+    const q = query(collection(firestoreDb, 'feedbacks'), where('ownerUid', '==', user.uid), where('read', '==', false));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(document => ({ ...document.data(), docId: document.id }) as any);
+      data.sort((a, b) => b.createdAt?.toMillis() - a.createdAt?.toMillis());
+      setFeedbacks(data);
+    }, (error) => {
+      const errInfo = {
+        error: error.message,
+        operationType: 'get',
+        path: 'feedbacks',
+        authInfo: { userId: user?.uid }
+      };
+      console.error('Firestore Error: ', JSON.stringify(errInfo));
+    });
+    return () => unsubscribe();
+  }, [user]);
+
+  const handleScrollToTerritorio = (bairro: Bairro, territorio: Territorio) => {
+    setExpandedBairros(prev => ({ ...prev, [bairro.id]: true }));
+    setExpandedTerritorios(prev => ({ ...prev, [territorio.id]: true }));
+    setTimeout(() => {
+      const el = document.getElementById(`territorio-${territorio.id}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        el.classList.add('ring-2', 'ring-primary', 'ring-offset-2', 'ring-offset-bg');
+        setTimeout(() => {
+          el.classList.remove('ring-2', 'ring-primary', 'ring-offset-2', 'ring-offset-bg');
+        }, 2000);
+      }
+    }, 150);
+  };
 
   const smartStreetMatches = React.useMemo(() => {
     if (modalState.type !== 'smart_add_endereco' || !formData.street || formData.street.length < 3) return [];
@@ -439,16 +476,33 @@ export const ManualEdit: React.FC = () => {
     : null;
 
   const suggestions: { bairro: Bairro, territorio: Territorio, days: number | null }[] = [];
+  const recentUpdates: { bairro: Bairro, territorio: Territorio, latestDate: Date, days: number }[] = [];
   const today = new Date();
   
   db.bairros.forEach(bairro => {
     bairro.territorios.forEach(territorio => {
+      // Suggestion Logic
       if (!territorio.lastAssignedDate) {
         suggestions.push({ bairro, territorio, days: null });
       } else {
         const days = differenceInDays(today, new Date(territorio.lastAssignedDate));
         if (days > 20) {
           suggestions.push({ bairro, territorio, days });
+        }
+      }
+
+      // Recent Updates Logic
+      let maxDateMs = 0;
+      territorio.enderecos?.forEach(e => {
+        if (e.statusDate) {
+          const ms = new Date(e.statusDate).getTime();
+          if (ms > maxDateMs) maxDateMs = ms;
+        }
+      });
+      if (maxDateMs > 0) {
+        const days = differenceInDays(today, new Date(maxDateMs));
+        if (days <= 7) {
+          recentUpdates.push({ bairro, territorio, latestDate: new Date(maxDateMs), days });
         }
       }
     });
@@ -460,6 +514,8 @@ export const ManualEdit: React.FC = () => {
     if (b.days === null) return 1;
     return b.days - a.days;
   });
+
+  recentUpdates.sort((a, b) => b.latestDate.getTime() - a.latestDate.getTime());
 
   const totalAddresses = db.bairros.reduce((acc, bairro) => 
     acc + bairro.territorios.reduce((tAcc, territorio) => 
@@ -507,6 +563,63 @@ export const ManualEdit: React.FC = () => {
                 <div className="flex items-center justify-between mt-auto w-full">
                   <span className="text-xs font-medium px-2 py-1 rounded-md bg-surface-accent text-warning">
                     {sug.days === null ? 'Nunca visitado' : `Há ${sug.days} dias`}
+                  </span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {feedbacks.length > 0 && (
+        <div className="mb-6 bg-surface border border-warning/30 rounded-xl p-4">
+          <h3 className="text-lg font-medium text-warning flex items-center mb-3">
+            <MessageSquarePlus size={18} className="mr-2" /> Feedbacks Pendentes
+          </h3>
+          <div className="flex overflow-x-auto pb-2 gap-3 snap-x">
+            {feedbacks.map((f, idx) => {
+              const b = db.bairros.find(b => b.id === f.bairroId);
+              const t = b?.territorios.find(t => t.id === f.territorioId);
+
+              return (
+                <button 
+                  key={idx} 
+                  onClick={() => { 
+                    if (b && t) {
+                      handleScrollToTerritorio(b, t);
+                    }
+                  }}
+                  className="shrink-0 w-72 bg-bg border border-border rounded-lg p-3 snap-start hover:border-warning/50 transition-colors text-left flex flex-col relative"
+                >
+                  <div className="font-medium text-text-main truncate w-full pr-6">{b?.name} - Território {t?.name}</div>
+                  <div className="text-xs font-semibold uppercase tracking-wider text-warning mb-2 w-full truncate">Por {f.publisherName}</div>
+                  <div className="text-sm bg-surface-accent border border-border/50 p-2.5 rounded-md line-clamp-2 w-full text-text-main italic">
+                    "{f.notes}"
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {recentUpdates.length > 0 && (
+        <div className="mb-6 bg-surface border border-border rounded-xl p-4">
+          <h3 className="text-lg font-medium text-emerald-400 flex items-center mb-3">
+            <CheckCircle2 size={18} className="mr-2" /> Trabalhados Recentemente <span className="text-sm font-normal text-text-dim ml-2 mt-0.5">(Últimos 7 dias)</span>
+          </h3>
+          <div className="flex overflow-x-auto pb-2 gap-3 snap-x">
+            {recentUpdates.map((update, idx) => (
+              <button 
+                key={idx} 
+                onClick={() => { handleScrollToTerritorio(update.bairro, update.territorio); }}
+                className="shrink-0 w-64 bg-bg border border-border rounded-lg p-3 snap-start hover:border-emerald-500/30 transition-colors text-left flex flex-col"
+              >
+                <div className="font-medium text-text-main truncate w-full">{update.bairro.name}</div>
+                <div className="text-sm text-text-dim truncate mb-2 w-full">Território {update.territorio.name}</div>
+                <div className="flex items-center justify-between mt-auto w-full">
+                  <span className="text-xs font-medium px-2 py-1 rounded-md bg-surface-accent text-emerald-400">
+                    {update.days === 0 ? 'Hoje' : `Há ${update.days} dia${update.days > 1 ? 's' : ''}`}
                   </span>
                 </div>
               </button>
