@@ -30,38 +30,41 @@ export const Settings: React.FC = () => {
     
     try {
       const availableTerritories: any[] = [];
-      const TWENTY_DAYS_MS = 20 * 24 * 60 * 60 * 1000;
       const now = Date.now();
 
       // Find available territories
       db.bairros.forEach(bairro => {
         bairro.territorios.forEach(t => {
-          let isAvailable = false;
-          if (!t.lastAssignedDate) {
-            isAvailable = true;
-          } else {
-            const assignedMs = new Date(t.lastAssignedDate).getTime();
-            if (now - assignedMs > TWENTY_DAYS_MS) {
-              isAvailable = true;
-            }
-          }
-
-          if (isAvailable) {
-            // Generate a shareId for the public board to use
-            const shareId = Math.random().toString(36).substring(2, 10);
-            
-            availableTerritories.push({
-              bairroId: bairro.id,
-              territorioId: t.id,
-              bairroName: bairro.name,
-              territorioName: t.name,
-              enderecos: t.enderecos, // Keep plain, will be stringified in the share later
-              lastAssignedDate: t.lastAssignedDate || null,
-              preGeneratedShareId: shareId
-            });
-          }
+          // Generate a shareId for the public board to use
+          const shareId = Math.random().toString(36).substring(2, 10);
+          
+          availableTerritories.push({
+            bairroId: bairro.id,
+            territorioId: t.id,
+            bairroName: bairro.name,
+            territorioName: t.name,
+            enderecos: t.enderecos, // Keep plain, will be stringified in the share later
+            lastAssignedDate: t.lastAssignedDate || null,
+            preGeneratedShareId: shareId
+          });
         });
       });
+      
+      // Sort by oldest assigned or unassigned first
+      availableTerritories.sort((a, b) => {
+        if (!a.lastAssignedDate && !b.lastAssignedDate) return 0;
+        if (!a.lastAssignedDate) return -1;
+        if (!b.lastAssignedDate) return 1;
+        
+        const dateA = new Date(a.lastAssignedDate).getTime();
+        const dateB = new Date(b.lastAssignedDate).getTime();
+        return dateA - dateB;
+      });
+
+      // Keep only up to 15
+      if (availableTerritories.length > 15) {
+        availableTerritories.splice(15);
+      }
 
       // We pre-generate the share documents so anonymous users don't break the "only owner can create share" rule
       const batchPromises = availableTerritories.map(t => 

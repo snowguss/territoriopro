@@ -295,8 +295,8 @@ export const PublicBoardView: React.FC<PublicBoardProps> = ({ boardId }) => {
               <div className="w-16 h-16 bg-surface-accent rounded-full flex items-center justify-center mx-auto mb-4 border border-border">
                 <CheckCircle2 size={32} className="text-text-dim" />
               </div>
-              <h3 className="text-lg font-medium text-text-main mb-1">Nenhum território atrasado</h3>
-              <p className="text-text-dim text-sm mt-1">Todos os territórios desta congregação/grupo foram trabalhados recentemente.</p>
+              <h3 className="text-lg font-medium text-text-main mb-1">Nenhum território disponível</h3>
+              <p className="text-text-dim text-sm mt-1">Não há territórios cadastrados no momento.</p>
             </div>
           )}
         </div>

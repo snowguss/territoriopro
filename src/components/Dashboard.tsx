@@ -105,7 +105,7 @@ export const Dashboard: React.FC = () => {
         suggestions.push({ bairro, territorio, days: null });
       } else {
         const days = differenceInDays(today, new Date(territorio.lastAssignedDate));
-        if (days > 20) suggestions.push({ bairro, territorio, days });
+        suggestions.push({ bairro, territorio, days });
       }
     });
   });
@@ -115,6 +115,10 @@ export const Dashboard: React.FC = () => {
     if (b.days === null) return 1;
     return b.days - a.days;
   });
+  
+  if (suggestions.length > 15) {
+    suggestions.splice(15);
+  }
 
   // --- Modals Logic ---
   const handleCopyWhatsApp = async (bairro: Bairro, territorio: Territorio) => {

@@ -486,9 +486,7 @@ export const ManualEdit: React.FC = () => {
         suggestions.push({ bairro, territorio, days: null });
       } else {
         const days = differenceInDays(today, new Date(territorio.lastAssignedDate));
-        if (days > 20) {
-          suggestions.push({ bairro, territorio, days });
-        }
+        suggestions.push({ bairro, territorio, days });
       }
 
       // Recent Updates Logic
@@ -514,6 +512,10 @@ export const ManualEdit: React.FC = () => {
     if (b.days === null) return 1;
     return b.days - a.days;
   });
+
+  if (suggestions.length > 15) {
+    suggestions.splice(15);
+  }
 
   recentUpdates.sort((a, b) => b.latestDate.getTime() - a.latestDate.getTime());
 
